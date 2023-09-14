@@ -10,10 +10,17 @@ from pyraptor.model.raptor import (
     RaptorAlgorithm,
     best_stop_at_target_station,
     reconstruct_journey,
-    is_dominated,
+    is_dominated
 )
-from pyraptor.util import str2sec, sec2str
-
+from pyraptor.util import (
+    str2sec,
+    sec2str,
+    pick_random_station,
+    START_TIME,
+    END_TIME,
+    ROUNDS,
+    ORIGIN_STOP
+)
 
 def parse_arguments():
     """Parse arguments"""
@@ -29,35 +36,34 @@ def parse_arguments():
         "-or",
         "--origin",
         type=str,
-        default="Hertogenbosch ('s)",
+        default=ORIGIN_STOP,
         help="Origin station of the journey",
     )
     parser.add_argument(
         "-d",
         "--destination",
         type=str,
-        default="Rotterdam Centraal",
         help="Destination station of the journey for logging purposes",
     )
     parser.add_argument(
         "-st",
         "--starttime",
         type=str,
-        default="08:00:00",
+        default=START_TIME,
         help="Start departure time (hh:mm:ss)",
     )
     parser.add_argument(
         "-et",
         "--endtime",
         type=str,
-        default="08:30:00",
+        default=END_TIME,
         help="End departure time (hh:mm:ss)",
     )
     parser.add_argument(
         "-r",
         "--rounds",
         type=int,
-        default=5,
+        default=ROUNDS,
         help="Number of rounds to execute the RAPTOR algorithm",
     )
     arguments = parser.parse_args()
@@ -66,23 +72,34 @@ def parse_arguments():
 
 
 def main(
-    input_folder: str,
     origin_station: str,
-    destination_station: str,
-    departure_start_time: str,
-    departure_end_time: str,
-    rounds: int,
+    destination_station: str = None,
+    departure_start_time: str = None,
+    departure_end_time: str = None,
+    rounds: int = None,
+    input_folder: str = None,
+    cached_timetable: Timetable = None,
+    print_journeys_at_end: bool = False
 ):
     """Run RAPTOR algorithm"""
-
-    logger.debug("Input directory      : {}", input_folder)
-    logger.debug("Origin station       : {}", origin_station)
-    logger.debug("Destination station  : {}", destination_station)
+    if departure_start_time is None or departure_end_time is None:
+        raise ValueError('departure_start_time and departure_end_time have to be strings')
     logger.debug("Departure start time : {}", departure_start_time)
     logger.debug("Departure end time   : {}", departure_end_time)
     logger.debug("Rounds               : {}", str(rounds))
 
-    timetable = read_timetable(input_folder)
+    if cached_timetable is None:
+        logger.debug("Input directory     : {}", input_folder)
+        timetable = read_timetable(input_folder)
+    else:
+        timetable = cached_timetable
+
+    if origin_station == '__random__':
+        origin_station = pick_random_station(timetable)
+    logger.debug("Origin station      : {}", origin_station)
+    if destination_station == '__random__':
+        destination_station = pick_random_station(timetable)
+    logger.debug("Destination station : {}", destination_station)
 
     logger.info(f"Calculating network from : {origin_station}")
 
@@ -103,8 +120,14 @@ def main(
 
     # All destinations are present in labels, so this is only for logging purposes
     logger.info(f"Journeys to destination station '{destination_station}'")
-    for jrny in journeys_to_destinations[destination_station][::-1]:
-        jrny.print()
+    if destination_station is None:
+        journeys = journeys_to_destinations
+    else:
+        journeys = journeys_to_destinations[destination_station][::-1]
+    if print_journeys_at_end:
+        for jrny in journeys:
+            jrny.print()
+    return journeys
 
 
 def run_range_raptor(
@@ -117,7 +140,6 @@ def run_range_raptor(
     """
     Perform the RAPTOR algorithm for a range query
     """
-
     # Get stops for origins and destinations
     from_stops = timetable.stations.get_stops(origin_station)
     destination_stops = {

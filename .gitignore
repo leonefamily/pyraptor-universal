@@ -2,6 +2,7 @@
 .idea/
 .vscode/
 .devcontainer/
+.spyproject/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

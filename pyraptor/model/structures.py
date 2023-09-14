@@ -7,6 +7,7 @@ from operator import attrgetter
 from typing import List, Dict, Tuple
 from dataclasses import dataclass, field
 from copy import copy
+from datetime import datetime as dt, timedelta as td
 
 import attr
 import numpy as np
@@ -178,7 +179,7 @@ class TripStopTime:
     stop = attr.ib(default=attr.NOTHING)
     dts_arr = attr.ib(default=attr.NOTHING)
     dts_dep = attr.ib(default=attr.NOTHING)
-    fare = attr.ib(default=0.0)
+    fare = attr.ib(default=0)
 
     def __hash__(self):
         return hash((self.trip, self.stopidx))
@@ -223,9 +224,9 @@ class TripStopTimes:
         in_window = [
             tst
             for tst in self
-            if tst.dts_dep >= dep_secs_min
-            and tst.dts_dep <= dep_secs_max
-            and tst.stop in stops
+            if (tst.dts_dep >= dep_secs_min
+                and tst.dts_dep <= dep_secs_max
+                and tst.stop in stops)
         ]
         return in_window
 
@@ -251,6 +252,7 @@ class Trip:
     stop_times_index = attr.ib(default=attr.Factory(dict))
     hint = attr.ib(default=None)
     long_name = attr.ib(default=None)  # e.g., Sprinter
+    route_type = attr.ib(default=None)  # 1 - tram...
 
     def __hash__(self):
         return hash(self.id)
@@ -294,7 +296,7 @@ class Trip:
     def get_fare(self, depart_stop: Stop) -> int:
         """Get fare from depart_stop"""
         stop_time = self.get_stop(depart_stop)
-        return 0 if stop_time is None else stop_time.fare
+        return 0 if stop_time is None else 0  # stop_time.fare  # !!!
 
 
 class Trips:
@@ -332,6 +334,7 @@ class Route:
     """Route"""
 
     id = attr.ib(default=None)
+    type = attr.ib(default=None)
     trips = attr.ib(default=attr.Factory(list))
     stops = attr.ib(default=attr.Factory(list))
     stop_order = attr.ib(default=attr.Factory(dict))
@@ -727,7 +730,7 @@ class Journey:
             if (
                 (self.dep() >= jrny.dep())
                 and (self.arr() <= jrny.arr())
-                and (self.fare() <= jrny.fare())
+                # and (self.fare() <= jrny.fare())
                 and (self.number_of_trips() <= jrny.number_of_trips())
             )
             and (self != jrny)
@@ -736,45 +739,182 @@ class Journey:
 
     def print(self, dep_secs=None):
         """Print the given journey to logger info"""
-
-        logger.info("Journey:")
-
-        if len(self) == 0:
-            logger.info("No journey available")
-            return
-
-        # Print all legs in journey
-        for leg in self:
-            msg = (
-                str(sec2str(leg.dep))
-                + " "
-                + leg.from_stop.station.name.ljust(20)
-                + "(p. "
-                + str(leg.from_stop.platform_code).rjust(3)
-                + ") TO "
-                + str(sec2str(leg.arr))
-                + " "
-                + leg.to_stop.station.name.ljust(20)
-                + "(p. "
-                + str(leg.to_stop.platform_code).rjust(3)
-                + ") WITH "
-                + str(leg.trip.hint)
-            )
-            logger.info(msg)
-
-        logger.info(f"Fare: €{self.fare()}")
-
-        msg = f"Duration: {sec2str(self.travel_time())}"
-        if dep_secs:
-            msg += " ({} from request time {})".format(
-                sec2str(self.arr() - dep_secs), sec2str(dep_secs),
-            )
+        stats = self.get_statistics(dep_secs)
+        msg = "Journey:\n\n"
+        msg += f"DIRECTION   : {stats['from_stop']} — {stats['to_stop']}\n"
+        msg += f"TRAVEL TIME : {stats['travel_time_since_departure']}\n"
+        msg += f"ARRIVES IN  : {stats['first_wait_time']}\n"
+        msg += f"TRANSFERS   : {len(stats['transfer_times'])}\n"
+        last = f"WAIT TIME   : {stats['wait_transfer_time']}\n"
+        msg += last
+        msg += '—' * len(last) + '\n'
+        for i in range(len(stats['trip_ids'])):
+            line = stats['lines'][i]
+            board_time = stats['board_times'][i]
+            egress_time = stats['egress_times'][i]
+            stop1 = stats['trip_stops'][i][0]
+            stop2 = stats['trip_stops'][i][-1]
+            msg += (f"{(line).ljust(12) + ':'} [{board_time}] {stop1} — "
+                    f"({stats['travel_times'][i]}) — {stop2} [{egress_time}]\n")
+            if i < len(stats['transfer_times']):
+                msg += (f"transfer    : [{egress_time}] {len(stop1) * ' '} —"
+                        f" ({stats['transfer_times'][i]}) — {len(stop2) * ' '} [{stats['board_times'][i + 1]}]\n")
         logger.info(msg)
-        logger.info("")
+        return msg
 
     def to_list(self) -> List[Dict]:
         """Convert journey to list of legs as dict"""
-        return [leg.to_dict(leg_index=idx) for idx, leg in enumerate(self.legs)]
+        return [leg.to_dict(leg_index=idx) for
+                idx, leg in enumerate(self.legs)]
+
+    def get_statistics(self, dep_secs=None):
+        stats = {
+            'first_wait_time': td(),
+            'transfer_stops': [],
+            'transfer_times': [],
+            'travel_times': [],
+            'trip_ids': [],
+            'trip_stops': [],
+            'board_times': [],
+            'egress_times': [],
+            'lines': [],
+            'travel_time_since_departure': td(),
+            'travel_time_since_search': td(),
+            'travel_only_time': td(),
+            'wait_total_time': td(),
+            'wait_transfer_time': td()
+            }
+
+        if dep_secs:
+            stats['first_wait_time'] = td(seconds=self.dep() - dep_secs)
+        stats['from_stop'] = self.from_stop().station.name
+        stats['to_stop'] = self.to_stop().station.name
+        stats['travel_time_since_departure'] = td(seconds=self.travel_time())
+
+        for i, leg in enumerate(self.legs):
+            stats['trip_stops'].append(get_leg_stops(leg, 'name'))
+            stats['board_times'].append(td(seconds=leg.dep))
+            stats['egress_times'].append(td(seconds=leg.arr))
+            stats['trip_ids'].append(leg.trip.id)
+            stats['lines'].append(leg.trip.hint)
+            stats['travel_times'].append(td(seconds=leg.arr - leg.dep))
+
+            if i != 0:
+                stats['transfer_stops'].append(leg.from_stop.station.name)
+                stats['transfer_times'].append(
+                    td(seconds=leg.dep - self.legs[i - 1].arr))
+
+        stats['wait_transfer_time'] = sum(stats['transfer_times'], td())
+        stats['wait_total_time'] = stats['wait_transfer_time'] + stats['first_wait_time']
+        stats['travel_time_since_search'] = stats['travel_time_since_departure'] + stats['first_wait_time']
+        stats['travel_only_time'] = sum(stats['travel_times'], td())
+        return stats
+
+    # def get_statistics(self, dep_secs=None):
+    #     stats = {
+    #         'first_wait_time': td(),
+    #         'transfer_stops': [],
+    #         'transfer_times': [],
+    #         'travel_times': [],
+    #         'trip_ids': [],
+    #         'trip_stops': [],
+    #         'board_times': [],
+    #         'egress_times': [],
+    #         'lines': [],
+    #         'travel_time_since_departure': td(),
+    #         'travel_time_since_search': td(),
+    #         'travel_only_time': td(),
+    #         'wait_total_time': td(),
+    #         'wait_transfer_time': td()
+    #         }
+
+    #     if dep_secs:
+    #         stats['first_wait_time'] = td(seconds=self.dep() - dep_secs)
+
+    #     last_stop_ids = []
+    #     last_stop = None
+
+    #     for i, leg in enumerate(self.legs):
+    #         if i == 0:
+    #             stats['lines'].append(leg.trip.hint)
+    #             stats['trip_ids'].append(leg.trip.id)
+    #             last_start = leg.dep
+    #             last_trip = leg.trip.id
+    #             stats['board_times'].append(td(seconds=self.legs[i].dep))
+    #         stop_names, stop_ids = get_leg_stops(leg, 'both')
+    #         if last_trip != leg.trip.id:
+    #             print(last_trip, leg.trip.id, last_stop)
+    #             if len(stats['trip_stops']) == 0:
+    #                 stats['trip_stops'].append(last_stop_ids + [last_stop])
+    #                 last_stop_ids.clear()
+    #             print('###', stats['trip_stops'][-1])
+    #             last_stop_ids.extend(stop_names)
+    #             stats['travel_times'].append(td(seconds=leg.arr - last_start))
+    #             stats['transfer_stops'].append(leg.from_stop.station.name)
+    #             stats['lines'].append(leg.trip.hint)
+    #             stats['trip_ids'].append(leg.trip.id)
+    #             stats['transfer_times'].append(td(seconds=leg.dep -
+    #                                               self.legs[i - 1].arr))
+    #             stats['board_times'].append(td(seconds=leg.dep))
+    #             stats['egress_times'].append(td(seconds=self.legs[i - 1].arr))
+    #             stats['trip_stops'].append(copy(last_stop_ids))
+    #             last_stop_ids.clear()
+    #             last_start = leg.dep
+    #         else:
+    #             last_stop_ids.extend(stop_names[:-1])
+    #         last_trip = leg.trip.id
+    #         last_stop = stop_names[-1]
+    #         print(stop_names)
+
+    #     stats['egress_times'].append(td(seconds=leg.arr))
+    #     if not stats['trip_stops'] or last_stop != stats['trip_stops'][-1][-1]:
+    #         # print(stop_names)
+    #         stats['trip_stops'].append(last_stop_ids + [last_stop])
+    #     stats['travel_times'].append(td(seconds=leg.arr - last_start))
+
+    #     stats['wait_transfer_time'] = sum(stats['transfer_times'], td())
+    #     stats['wait_total_time'] = stats['wait_transfer_time'] + stats['first_wait_time']
+    #     stats['travel_time_since_departure'] = td(seconds=self.travel_time())
+    #     stats['travel_time_since_search'] = stats['travel_time_since_departure'] + stats['first_wait_time']
+    #     stats['travel_only_time'] = sum(stats['travel_times'], td())
+    #     stats['from_stop'] = self.from_stop().station.name
+    #     stats['to_stop'] = self.to_stop().station.name
+    #     return stats
+
+
+def _get_last_leg_stats(stats, leg, last_stop_ids, last_stop):
+    pass
+
+
+def get_leg_stops(leg, entity='name') -> tuple:
+    segment_names = []
+    segment_ids = []
+    started = False
+    for stop in leg.trip.stop_times_index:
+        if not started:
+            started = stop.station.name == leg.from_stop.station.name
+            if started:
+                segment_ids.append(stop.id)
+                segment_names.append(stop.station.name)
+        else:
+            segment_ids.append(stop.id)
+            segment_names.append(stop.station.name)
+            if stop.station.name == leg.to_stop.station.name:
+                break
+    if entity == 'name':
+        return segment_names
+    elif entity == 'id':
+        return segment_ids
+    elif entity == 'both':
+        return segment_names, segment_ids
+
+
+def get_transfers_count(journey: Journey):
+    untrips = set()
+    for leg in journey.legs:
+        untrips.add(leg.trip.id)
+    return len(untrips) - 1
+
 
 def pareto_set(labels: List[Label], keep_equal=False):
     """

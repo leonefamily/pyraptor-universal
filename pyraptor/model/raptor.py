@@ -251,7 +251,8 @@ class RaptorAlgorithm:
         return transfers.stop_to_stop_idx[(stop_from, stop_to)].layovertime
 
 
-def best_stop_at_target_station(to_stops: List[Stop], bag: Dict[Stop, Label]) -> Stop:
+def best_stop_at_target_station(to_stops: List[Stop],
+                                bag: Dict[Stop, Label]) -> Stop:
     """
     Find the destination Stop with the shortest distance.
     Required in order to prevent adding travel time to the arrival time.
@@ -265,7 +266,9 @@ def best_stop_at_target_station(to_stops: List[Stop], bag: Dict[Stop, Label]) ->
     return final_stop
 
 
-def reconstruct_journey(destination: Stop, bag: Dict[Stop, Label]) -> Journey:
+def reconstruct_journey(destination: Stop,
+                        bag: Dict[Stop, Label],
+                        break_by_trip: bool = True) -> Journey:
     """Construct journey for destination from values in bag."""
 
     # Create journey with list of legs
@@ -275,14 +278,42 @@ def reconstruct_journey(destination: Stop, bag: Dict[Stop, Label]) -> Journey:
         from_stop = bag[to_stop].from_stop
         bag_to_stop = bag[to_stop]
         leg = Leg(
-            from_stop, to_stop, bag_to_stop.trip, bag_to_stop.earliest_arrival_time
+            from_stop, to_stop, bag_to_stop.trip,
+            bag_to_stop.earliest_arrival_time
         )
         jrny = jrny.prepend_leg(leg)
         to_stop = from_stop
 
     jrny = jrny.remove_transfer_legs()
 
-    return jrny
+    if not break_by_trip:
+        return jrny
+
+    # Reconstruct legs to correspond with trips
+    njrny = Journey()
+    all_trips = []
+    last_leg = jrny.legs[0]
+    last_trip = last_leg.trip
+    last_stop = last_leg.from_stop
+
+    for i, leg in enumerate(jrny.legs):
+
+        if last_trip != leg.trip:
+            all_trips.append(
+                Leg(last_stop, last_leg.to_stop, last_trip,
+                    leg.earliest_arrival_time)
+                )
+            last_stop = leg.from_stop
+        last_leg = leg
+        last_trip = leg.trip
+
+    all_trips.append(
+        Leg(last_stop, leg.to_stop, last_trip,
+            leg.earliest_arrival_time))
+    for atrip in all_trips[::-1]:
+        njrny.prepend_leg(atrip)
+
+    return njrny
 
 
 def is_dominated(original_journey: List[Leg], new_journey: List[Leg]) -> bool:

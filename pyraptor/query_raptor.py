@@ -1,7 +1,7 @@
 """Run query with RAPTOR algorithm"""
 import argparse
 from typing import Dict
-
+import sys
 from loguru import logger
 
 from pyraptor.dao.timetable import read_timetable
@@ -11,10 +11,10 @@ from pyraptor.model.raptor import (
     reconstruct_journey,
     best_stop_at_target_station,
 )
-from pyraptor.util import str2sec
+from pyraptor.util import str2sec, pick_random_station
 
 
-def parse_arguments():
+def parse_arguments(args_from: list = sys.argv[1:]):
     """Parse arguments"""
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -28,14 +28,14 @@ def parse_arguments():
         "-or",
         "--origin",
         type=str,
-        default="Hertogenbosch ('s)",
+        default="__random__",
         help="Origin station of the journey",
     )
     parser.add_argument(
         "-d",
         "--destination",
         type=str,
-        default="Rotterdam Centraal",
+        default="__random__",
         help="Destination station of the journey",
     )
     parser.add_argument(
@@ -48,31 +48,41 @@ def parse_arguments():
         default=5,
         help="Number of rounds to execute the RAPTOR algorithm",
     )
-    arguments = parser.parse_args()
+    arguments = parser.parse_args(args_from)
     return arguments
 
 
 def main(
-    input_folder,
     origin_station,
     destination_station,
     departure_time,
     rounds,
+    input_folder: str = None,
+    cached_timetable: Timetable = None
 ):
     """Run RAPTOR algorithm"""
 
-    logger.debug("Input directory     : {}", input_folder)
-    logger.debug("Origin station      : {}", origin_station)
-    logger.debug("Destination station : {}", destination_station)
     logger.debug("Departure time      : {}", departure_time)
     logger.debug("Rounds              : {}", str(rounds))
 
-    timetable = read_timetable(input_folder)
+    if cached_timetable is None:
+        logger.debug("Input directory     : {}", input_folder)
+        timetable = read_timetable(input_folder)
+    else:
+        timetable = cached_timetable
+
+    if origin_station == '__random__':
+        origin_station = pick_random_station(timetable)
+    logger.debug("Origin station      : {}", origin_station)
+    if destination_station == '__random__':
+        destination_station = pick_random_station(timetable)
+    logger.debug("Destination station : {}", destination_station)
 
     logger.info(f"Calculating network from: {origin_station}")
 
     # Departure time seconds
     dep_secs = str2sec(departure_time)
+    logger.debug("Departure time       : " + departure_time)
     logger.debug("Departure time (s.)  : " + str(dep_secs))
 
     # Find route between two stations
@@ -84,7 +94,9 @@ def main(
     )
 
     # Print journey to destination
-    journey_to_destinations[destination_station].print(dep_secs=dep_secs)
+    journey = journey_to_destinations[destination_station]
+    journey.print(dep_secs=dep_secs)
+    return journey
 
 
 def run_raptor(
@@ -128,9 +140,9 @@ def run_raptor(
 if __name__ == "__main__":
     args = parse_arguments()
     main(
-        args.input,
         args.origin,
         args.destination,
         args.time,
         args.rounds,
+        args.input,
     )

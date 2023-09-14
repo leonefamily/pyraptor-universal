@@ -1,6 +1,6 @@
 # PyRaptor
 
-Python implementation of RAPTOR and McRAPTOR using GTFS data. Tested on Dutch GTFS data.
+Fork of https://github.com/lmeulen/pyraptor for usage as a library rather than CLI.
 
 This repository contains four applications:
 

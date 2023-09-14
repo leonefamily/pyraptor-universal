@@ -13,7 +13,9 @@ from pyraptor.model.mcraptor import (
     best_legs_to_destination_station,
     reconstruct_journeys,
 )
-from pyraptor.util import str2sec, sec2str
+from pyraptor.util import (
+    str2sec, sec2str, pick_random_station, ROUNDS, START_TIME, END_TIME, ORIGIN_STOP
+)
 
 
 def parse_arguments():
@@ -30,35 +32,34 @@ def parse_arguments():
         "-or",
         "--origin",
         type=str,
-        default="Hertogenbosch ('s)",
+        default=ORIGIN_STOP,
         help="Origin station of the journey",
     )
     parser.add_argument(
         "-d",
         "--destination",
         type=str,
-        default="Rotterdam Centraal",
         help="Destination station of the journey for logging purposes",
     )
     parser.add_argument(
         "-st",
         "--starttime",
         type=str,
-        default="08:00:00",
+        default=START_TIME,
         help="Start departure time (hh:mm:ss)",
     )
     parser.add_argument(
         "-et",
         "--endtime",
         type=str,
-        default="08:30:00",
+        default=END_TIME,
         help="End departure time (hh:mm:ss)",
     )
     parser.add_argument(
         "-r",
         "--rounds",
         type=int,
-        default=5,
+        default=ROUNDS,
         help="Number of rounds to execute the RAPTOR algorithm",
     )
     arguments = parser.parse_args()
@@ -67,23 +68,35 @@ def parse_arguments():
 
 
 def main(
-    input_folder: str,
     origin_station: str,
-    destination_station: str,
-    departure_start_time: str,
-    departure_end_time: str,
-    rounds: int,
-):
+    destination_station: str = None,
+    departure_start_time: str = None,
+    departure_end_time: str = None,
+    rounds: int = ROUNDS,
+    input_folder: str = None,
+    cached_timetable: Timetable = None,
+    print_journeys_at_end: bool = False
+) -> List[Journey]:
     """Run RAPTOR algorithm"""
+    if departure_start_time is None or departure_end_time is None:
+        raise ValueError('departure_start_time and departure_end_time have to be strings')
 
-    logger.debug("Input directory      : {}", input_folder)
-    logger.debug("Origin station       : {}", origin_station)
-    logger.debug("Destination station  : {}", destination_station)
     logger.debug("Departure start time : {}", departure_start_time)
     logger.debug("Departure end time   : {}", departure_end_time)
     logger.debug("Rounds               : {}", str(rounds))
 
-    timetable = read_timetable(input_folder)
+    if cached_timetable is None:
+        logger.debug("Input directory     : {}", input_folder)
+        timetable = read_timetable(input_folder)
+    else:
+        timetable = cached_timetable
+
+    if origin_station == '__random__':
+        origin_station = pick_random_station(timetable)
+    logger.debug("Origin station      : {}", origin_station)
+    if destination_station == '__random__':
+        destination_station = pick_random_station(timetable)
+    logger.debug("Destination station : {}", destination_station)
 
     logger.info(f"Calculating network from : {origin_station}")
 
@@ -101,10 +114,16 @@ def main(
         rounds,
     )
 
-    # All destinations are calculated, however, we only print one for logging purposes
+    # All destinations are present in labels, so this is only for logging purposes
     logger.info(f"Journeys to destination station '{destination_station}'")
-    for jrny in journeys_to_destinations[destination_station]:
-        jrny.print()
+    if destination_station is None:
+        journeys = journeys_to_destinations
+    else:
+        journeys = journeys_to_destinations[destination_station][::-1]
+    if print_journeys_at_end:
+        for jrny in journeys:
+            jrny.print()
+    return journeys
 
 
 def run_range_mcraptor(
@@ -146,6 +165,7 @@ def run_range_mcraptor(
     logger.info("Calculating journeys to all destinations")
     s = perf_counter()
 
+    last_round_bag = None
     # Find Pareto-optimal journeys for all possible departure times
     for dep_index, dep_secs in enumerate(potential_dep_secs):
         logger.info(f"Processing {dep_index} / {len(potential_dep_secs)}")
@@ -181,17 +201,17 @@ def run_range_mcraptor(
                 unique_journeys.append(journey)
 
         journeys_to_destinations[destination_station_name] = unique_journeys
-        
+
     return journeys_to_destinations
 
 
 if __name__ == "__main__":
     args = parse_arguments()
     main(
-        args.input,
         args.origin,
         args.destination,
         args.starttime,
         args.endtime,
         args.rounds,
+        args.input,
     )
