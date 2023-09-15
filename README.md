@@ -12,7 +12,7 @@ This repository contains four applications:
 
 ## Installation
 
-Install from PyPi using `pip install pyraptor` or clone this repository and install from source using pip.
+Install from PyPi using `pip install pyraptor_universal` or clone this repository and install from source using pip.
 
 ## Example usage
 

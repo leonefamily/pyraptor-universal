@@ -4,7 +4,7 @@ from copy import copy
 from time import perf_counter
 
 from loguru import logger
-from pyraptor.model.structures import (
+from pyraptor_universal.model.structures import (
     Timetable,
     Stop,
     Route,

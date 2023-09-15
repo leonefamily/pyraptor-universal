@@ -1,13 +1,13 @@
-from pyraptor.query_range_mcraptor import main as query
-from pyraptor.dao import read_timetable
-from pyraptor.util import str2sec
+from pyraptor_universal.query_range_mcraptor import main as query
+from pyraptor_universal.dao import read_timetable
+from pyraptor_universal.util import str2sec
 from loguru import logger
 import pandas as pd
 from datetime import datetime as dt, timedelta as td
 from itertools import product
 import logging
 
-# logger.disable('pyraptor')
+# logger.disable('pyraptor_universal')
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s %(message)s"

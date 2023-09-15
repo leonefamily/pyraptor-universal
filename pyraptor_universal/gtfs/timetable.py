@@ -10,9 +10,9 @@ from datetime import datetime as dt
 import pandas as pd
 from loguru import logger
 
-from pyraptor.dao import write_timetable
-from pyraptor.util import mkdir_if_not_exists, str2sec, TRANSFER_COST
-from pyraptor.model.structures import (
+from pyraptor_universal.dao import write_timetable
+from pyraptor_universal.util import mkdir_if_not_exists, str2sec, TRANSFER_COST
+from pyraptor_universal.model.structures import (
     Timetable,
     Stop,
     Stops,

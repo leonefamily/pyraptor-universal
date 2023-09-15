@@ -8,14 +8,14 @@ import random
 
 from loguru import logger
 
-from pyraptor.dao.timetable import read_timetable
-from pyraptor.model.structures import Timetable, Journey, Station
-from pyraptor.model.mcraptor import (
+from pyraptor_universal.dao.timetable import read_timetable
+from pyraptor_universal.model.structures import Timetable, Journey, Station
+from pyraptor_universal.model.mcraptor import (
     McRaptorAlgorithm,
     reconstruct_journeys,
     best_legs_to_destination_station,
 )
-from pyraptor.util import str2sec, pick_random_station
+from pyraptor_universal.util import str2sec, pick_random_station
 
 
 def parse_arguments(args_from: list = sys.argv[1:]):

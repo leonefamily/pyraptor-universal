@@ -6,14 +6,14 @@ from time import perf_counter
 
 from loguru import logger
 
-from pyraptor.dao.timetable import read_timetable
-from pyraptor.model.structures import Timetable, Journey, pareto_set
-from pyraptor.model.mcraptor import (
+from pyraptor_universal.dao.timetable import read_timetable
+from pyraptor_universal.model.structures import Timetable, Journey, pareto_set
+from pyraptor_universal.model.mcraptor import (
     McRaptorAlgorithm,
     best_legs_to_destination_station,
     reconstruct_journeys,
 )
-from pyraptor.util import (
+from pyraptor_universal.util import (
     str2sec, sec2str, pick_random_station, ROUNDS, START_TIME, END_TIME, ORIGIN_STOP
 )
 

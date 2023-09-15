@@ -4,14 +4,14 @@ from typing import Dict
 import sys
 from loguru import logger
 
-from pyraptor.dao.timetable import read_timetable
-from pyraptor.model.structures import Journey, Station, Timetable
-from pyraptor.model.raptor import (
+from pyraptor_universal.dao.timetable import read_timetable
+from pyraptor_universal.model.structures import Journey, Station, Timetable
+from pyraptor_universal.model.raptor import (
     RaptorAlgorithm,
     reconstruct_journey,
     best_stop_at_target_station,
 )
-from pyraptor.util import str2sec, pick_random_station
+from pyraptor_universal.util import str2sec, pick_random_station
 
 
 def parse_arguments(args_from: list = sys.argv[1:]):

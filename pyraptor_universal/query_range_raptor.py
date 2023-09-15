@@ -4,15 +4,15 @@ from typing import Dict, List
 
 from loguru import logger
 
-from pyraptor.dao.timetable import read_timetable
-from pyraptor.model.structures import Journey, Timetable
-from pyraptor.model.raptor import (
+from pyraptor_universal.dao.timetable import read_timetable
+from pyraptor_universal.model.structures import Journey, Timetable
+from pyraptor_universal.model.raptor import (
     RaptorAlgorithm,
     best_stop_at_target_station,
     reconstruct_journey,
     is_dominated
 )
-from pyraptor.util import (
+from pyraptor_universal.util import (
     str2sec,
     sec2str,
     pick_random_station,
@@ -21,6 +21,7 @@ from pyraptor.util import (
     ROUNDS,
     ORIGIN_STOP
 )
+
 
 def parse_arguments():
     """Parse arguments"""

@@ -1,6 +1,6 @@
 """Test Range Query for Raptor"""
-from pyraptor import query_range_raptor
-from pyraptor.model.structures import Timetable
+from pyraptor_universal import query_range_raptor
+from pyraptor_universal.model.structures import Timetable
 
 
 def test_has_main():
