@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "pyraptor"
+name = "pyraptor_universal"
 version = "1.3.10"
 description = "Journey planner with RAPTOR algorithm"
 authors = ["Leo van der Meulen, Thom Hopmans"]
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/lmeulen/pyraptor"
-repository = "https://github.com/lmeulen/pyraptor"
+homepage = "https://github.com/leonefamily/pyraptor-universal"
+repository = "https://github.com/leonefamily/pyraptor-universal"
 include = [
     "LICENSE",
 ]
@@ -30,7 +30,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.semantic_release]
 version_variable = [
-    "pyraptor/__init__.py:__version__",
+    "pyraptor_universal/__init__.py:__version__",
     "pyproject.toml:version"
 ]
 branch = "master"
