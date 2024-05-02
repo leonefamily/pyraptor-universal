@@ -40,7 +40,7 @@ class McRaptorAlgorithm:
         logger.debug(f"Starting from Stop IDs: {str(from_stops)}")
 
         # Initialize bag for round 0, i.e. add Labels with criterion 0 for all from stops
-        if previous_run != None:
+        if previous_run is not None:
             # For the range query
             bag_round_stop[0] = copy(previous_run)
 
